@@ -75,7 +75,7 @@ jobs:
           make defconfig
           grep -qx 'CONFIG_TARGET_ramips=y' .config
           grep -qx 'CONFIG_TARGET_ramips_mt7621=y' .config
-          grep -qx 'CONFIG_TARGET_ramips_mt7621_DEVICE_glinet_gl_mg1300=y' .config
+          grep -qx 'CONFIG_TARGET_ramips_mt7621_DEVICE_glinet_gl-mg1300=y' .config
           echo "Selected target:"
           grep '^CONFIG_TARGET_ramips' .config
 
