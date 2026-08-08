@@ -5,8 +5,18 @@
 [ "$(board_name)" = "glinet,gl-mg1300" ] || exit 0
 
 uci -q set system.@system[0].hostname='GL-MG1300'
+uci -q set network.lan.device='br-lan'
+uci -q set network.lan.proto='static'
 uci -q set network.lan.ipaddr='192.168.8.1'
+uci -q set network.lan.netmask='255.255.255.0'
+uci -q delete network.lan.ifname
+uci -q set dhcp.lan.interface='lan'
+uci -q set dhcp.lan.start='100'
+uci -q set dhcp.lan.limit='150'
+uci -q set dhcp.lan.leasetime='12h'
+uci -q set dhcp.lan.ignore='0'
 uci -q commit system
 uci -q commit network
+uci -q commit dhcp
 
 exit 0

@@ -21,10 +21,10 @@ SPI-NOR 是 Eon EN25QE16A，25 MHz；SPI-NAND 是 Macronix，128 MiB、128 KiB �
 
 - NOR 第一分区使用真实标签 `u-boot`，不是参考文件中的 `fip`。
 - 保留原厂 NOR/NAND 总线频率 25/50 MHz。
-- 使用原厂 `mediatek,mtd-eeprom = <&factory 0x0>` 和 `dbdc` 描述 MT7615 双频校准；没有添加不存在的第二校准分区。
+- MT7615 使用已验证移植的 NVMEM EEPROM 描述，校准数据来自 `factory` 偏移 `0x0`；5 GHz 虚拟频段 MAC 使用 WLAN 基址 `0x4` 加 1。PCIe PERST# 明确绑定到原厂 GPIO19。
 - Ethernet 使用 factory `0x4000`：WAN 为基址，LAN 为基址加 1。
 - LAN/WAN 使用交换机 port@2/port@4；原厂没有第二个物理 LAN 口。
-- GPIO16 保留为 EV_SW 模式开关，GPIO18 为 KEY_RESTART；GPIO13/14 为 active-low LED，run LED 默认点亮。
+- GPIO16 使用已验证移植的 KEY_SETUP 模式开关，GPIO18 为 KEY_RESTART；GPIO13/14 为 active-low LED，run LED 默认点亮。
 - SDHCI 保持默认禁用，不添加 `kmod-mmc-mtk`。设备审计没有发现 MMC 主机、mmcblk 或 eMMC。
 - GPIO12 作为 USB 供电导出；原厂 `usb-control` 是专有驱动接口，未伪造为主线设备。
 - 升级镜像检查阶段保留原厂 `vm.min_free_kbytes=1024` 设置，降低 128 MiB 内存设备升级时的内存压力。

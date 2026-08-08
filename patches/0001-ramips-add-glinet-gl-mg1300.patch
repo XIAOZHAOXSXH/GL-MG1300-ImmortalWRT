@@ -2,13 +2,14 @@ diff --git a/target/linux/ramips/dts/mt7621_glinet_gl-mg1300.dts b/target/linux/
 new file mode 100644
 --- /dev/null
 +++ b/target/linux/ramips/dts/mt7621_glinet_gl-mg1300.dts
-@@ -0,0 +1,182 @@
+@@ -0,0 +1,206 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 +
 +#include "mt7621.dtsi"
 +
 +#include <dt-bindings/gpio/gpio.h>
 +#include <dt-bindings/input/input.h>
++#include <dt-bindings/leds/common.h>
 +
 +/ {
 +	compatible = "glinet,gl-mg1300", "mediatek,mt7621-soc";
@@ -39,7 +40,6 @@ new file mode 100644
 +			label = "switch";
 +			gpios = <&gpio 16 GPIO_ACTIVE_LOW>;
 +			linux,code = <KEY_SETUP>;
-+			linux,input-type = <EV_SW>;
 +		};
 +	};
 +
@@ -71,20 +71,34 @@ new file mode 100644
 +
 +&pcie {
 +	status = "okay";
++	reset-gpios = <&gpio 19 GPIO_ACTIVE_LOW>;
 +};
 +
 +&pcie0 {
 +	wifi@0,0 {
 +		compatible = "mediatek,mt76";
 +		reg = <0x0000 0 0 0 0>;
-+		dbdc;
-+		mediatek,mtd-eeprom = <&factory 0x0>;
++		nvmem-cells = <&eeprom_factory_0>;
++		nvmem-cell-names = "eeprom";
++
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		band@1 {
++			reg = <1>;
++			nvmem-cells = <&macaddr_factory_4 1>;
++			nvmem-cell-names = "mac-address";
++		};
 +	};
 +};
 +
 +&gmac0 {
 +	nvmem-cells = <&macaddr_factory_4000 1>;
 +	nvmem-cell-names = "mac-address";
++};
++
++&sdhci {
++	status = "disabled";
 +};
 +
 +&spi0 {
@@ -123,6 +137,16 @@ new file mode 100644
 +					compatible = "fixed-layout";
 +					#address-cells = <1>;
 +					#size-cells = <1>;
++
++					eeprom_factory_0: eeprom@0 {
++						reg = <0x0 0x4da8>;
++					};
++
++					macaddr_factory_4: macaddr@4 {
++						compatible = "mac-base";
++						reg = <0x4 0x6>;
++						#nvmem-cell-cells = <1>;
++					};
 +
 +					macaddr_factory_4000: macaddr@4000 {
 +						compatible = "mac-base";

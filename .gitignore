@@ -1,6 +1,7 @@
 .upstream-immortalwrt/
 device-audit-agent/
 参考文件/
+已验证参考文件/
 bin/
 build/
 release/
