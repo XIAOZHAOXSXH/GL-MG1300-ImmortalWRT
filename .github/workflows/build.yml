@@ -18,8 +18,6 @@ env:
   IMMORTALWRT_REF: v25.12.1
   HTTP_PROXY: ${{ vars.BUILD_HTTP_PROXY }}
   HTTPS_PROXY: ${{ vars.BUILD_HTTPS_PROXY }}
-  http_proxy: ${{ vars.BUILD_HTTP_PROXY }}
-  https_proxy: ${{ vars.BUILD_HTTPS_PROXY }}
 
 jobs:
   build:
