@@ -1,0 +1,179 @@
+name: Build ImmortalWRT GL-MG1300
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gl-mg1300-build
+  cancel-in-progress: false
+
+env:
+  IMMORTALWRT_REPO: https://github.com/immortalwrt/immortalwrt.git
+  IMMORTALWRT_REF: v25.12.1
+  HTTP_PROXY: ${{ vars.BUILD_HTTP_PROXY }}
+  HTTPS_PROXY: ${{ vars.BUILD_HTTPS_PROXY }}
+  http_proxy: ${{ vars.BUILD_HTTP_PROXY }}
+  https_proxy: ${{ vars.BUILD_HTTPS_PROXY }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    outputs:
+      upstream_commit: ${{ steps.source.outputs.commit }}
+
+    steps:
+      - name: Check out build configuration
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang device-tree-compiler flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
+            libpython3-dev python3-setuptools python3-pyelftools rsync swig \
+            unzip zlib1g-dev file wget xsltproc libelf-dev zstd
+
+      - name: Clone ImmortalWRT
+        id: source
+        run: |
+          git clone --depth=1 --single-branch --branch "$IMMORTALWRT_REF" \
+            "$IMMORTALWRT_REPO" immortalwrt
+          cd immortalwrt
+          commit="$(git rev-parse HEAD)"
+          echo "UPSTREAM_COMMIT=$commit" >> "$GITHUB_ENV"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Apply GL-MG1300 support
+        run: |
+          cd immortalwrt
+          patch="$GITHUB_WORKSPACE/patches/0001-ramips-add-glinet-gl-mg1300.patch"
+          git apply --check "$patch"
+          git apply "$patch"
+          if [ -d "$GITHUB_WORKSPACE/files" ]; then
+            mkdir -p files
+            rsync -a "$GITHUB_WORKSPACE/files/" files/
+          fi
+
+      - name: Update and install feeds
+        run: |
+          cd immortalwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Configure target
+        run: |
+          cd immortalwrt
+          cp "$GITHUB_WORKSPACE/configs/gl-mg1300.config" .config
+          make defconfig
+          grep -qx 'CONFIG_TARGET_ramips=y' .config
+          grep -qx 'CONFIG_TARGET_ramips_mt7621=y' .config
+          grep -qx 'CONFIG_TARGET_ramips_mt7621_DEVICE_glinet_gl_mg1300=y' .config
+          echo "Selected target:"
+          grep '^CONFIG_TARGET_ramips' .config
+
+      - name: Download sources
+        run: |
+          cd immortalwrt
+          make download -j"$(nproc)" V=s
+          find dl -type f -size -1024c -delete
+
+      - name: Build firmware
+        run: |
+          cd immortalwrt
+          make -j"$(nproc)" V=s
+
+      - name: Collect firmware
+        run: |
+          cd immortalwrt
+          out="$GITHUB_WORKSPACE/release"
+          rm -rf "$out"
+          mkdir -p "$out"
+
+          target_dir="bin/targets/ramips/mt7621"
+          mapfile -t factory_images < <(find "$target_dir" -maxdepth 1 -type f \
+            -name '*gl-mg1300*factory.bin' -print | sort)
+          mapfile -t sysupgrade_images < <(find "$target_dir" -maxdepth 1 -type f \
+            -name '*gl-mg1300*sysupgrade.bin' -print | sort)
+          if [ "${#factory_images[@]}" -ne 1 ] || [ "${#sysupgrade_images[@]}" -ne 1 ]; then
+            echo "Expected exactly one factory image and one sysupgrade image"
+            find bin/targets/ramips/mt7621 -maxdepth 1 -type f -print | sort
+            exit 1
+          fi
+
+          factory_image="${factory_images[0]}"
+          sysupgrade_image="${sysupgrade_images[0]}"
+          if [ "$(head -c 4 "$factory_image")" != 'UBI#' ]; then
+            echo "Factory image does not start with a UBI erase-counter header"
+            exit 1
+          fi
+          tar -tf "$sysupgrade_image" | grep -qx 'sysupgrade-glinet_gl-mg1300/CONTROL'
+          tar -tf "$sysupgrade_image" | grep -qx 'sysupgrade-glinet_gl-mg1300/kernel'
+          tar -tf "$sysupgrade_image" | grep -qx 'sysupgrade-glinet_gl-mg1300/root'
+
+          images=("${factory_images[@]}" "${sysupgrade_images[@]}")
+          for image in "${images[@]}"; do
+            cp "$image" "$out/"
+          done
+
+          cat > "$out/BUILD_INFO.txt" <<EOF
+          Device: GL.iNet GL-MG1300
+          ImmortalWRT ref: $IMMORTALWRT_REF
+          ImmortalWRT commit: $UPSTREAM_COMMIT
+          Target: ramips/mt7621
+          Build run: $GITHUB_RUN_ID
+          EOF
+          (cd "$out" && sha256sum -- * > SHA256SUMS)
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gl-mg1300-immortalwrt-${{ github.run_number }}
+          path: release
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download verified firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: gl-mg1300-immortalwrt-${{ github.run_number }}
+          path: release
+
+      - name: Create release notes
+        env:
+          UPSTREAM_COMMIT: ${{ needs.build.outputs.upstream_commit }}
+        run: |
+          cat > release-notes.md <<EOF
+          ImmortalWRT $IMMORTALWRT_REF build for GL.iNet GL-MG1300.
+
+          Source commit: $UPSTREAM_COMMIT
+
+          This is an external-test port. Back up the device's SPI-NOR and SPI-NAND before any write. The factory image and first boot have not been validated on every recovery path; use the sysupgrade image only from a compatible ImmortalWRT installation.
+          EOF
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="immortalwrt-${IMMORTALWRT_REF}-gl-mg1300-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "GL-MG1300 ImmortalWRT $IMMORTALWRT_REF build $GITHUB_RUN_NUMBER" \
+            --notes-file release-notes.md

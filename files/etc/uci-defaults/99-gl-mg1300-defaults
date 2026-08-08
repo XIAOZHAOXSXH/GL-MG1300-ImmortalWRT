@@ -1,0 +1,12 @@
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "glinet,gl-mg1300" ] || exit 0
+
+uci -q set system.@system[0].hostname='GL-MG1300'
+uci -q set network.lan.ipaddr='192.168.8.1'
+uci -q commit system
+uci -q commit network
+
+exit 0

@@ -1,0 +1,253 @@
+diff --git a/target/linux/ramips/dts/mt7621_glinet_gl-mg1300.dts b/target/linux/ramips/dts/mt7621_glinet_gl-mg1300.dts
+new file mode 100644
+--- /dev/null
++++ b/target/linux/ramips/dts/mt7621_glinet_gl-mg1300.dts
+@@ -0,0 +1,182 @@
++// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
++
++#include "mt7621.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++
++/ {
++	compatible = "glinet,gl-mg1300", "mediatek,mt7621-soc";
++	model = "GL.iNet GL-MG1300";
++
++	aliases {
++		led-boot = &led_system;
++		led-failsafe = &led_system;
++		led-running = &led_run;
++		led-upgrade = &led_system;
++		label-mac-device = &wanport;
++	};
++
++	chosen {
++		bootargs = "console=ttyS0,115200";
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		reset {
++			label = "reset";
++			gpios = <&gpio 18 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++		};
++
++		switch {
++			label = "switch";
++			gpios = <&gpio 16 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_SETUP>;
++			linux,input-type = <EV_SW>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led_system: system {
++			label = "white:system";
++			gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
++		};
++
++		led_run: run {
++			label = "blue:run";
++			gpios = <&gpio 14 GPIO_ACTIVE_LOW>;
++			default-state = "on";
++		};
++	};
++
++	gpio-export {
++		compatible = "gpio-export";
++
++		usb_power {
++			gpio-export,name = "usb_power";
++			gpio-export,output = <1>;
++			gpios = <&gpio 12 GPIO_ACTIVE_HIGH>;
++		};
++	};
++};
++
++&pcie {
++	status = "okay";
++};
++
++&pcie0 {
++	wifi@0,0 {
++		compatible = "mediatek,mt76";
++		reg = <0x0000 0 0 0 0>;
++		dbdc;
++		mediatek,mtd-eeprom = <&factory 0x0>;
++	};
++};
++
++&gmac0 {
++	nvmem-cells = <&macaddr_factory_4000 1>;
++	nvmem-cell-names = "mac-address";
++};
++
++&spi0 {
++	status = "okay";
++	num-cs = <2>;
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <25000000>;
++		broken-flash-reset;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "u-boot";
++				reg = <0x0 0x80000>;
++				read-only;
++			};
++
++			partition@80000 {
++				label = "u-boot-env";
++				reg = <0x80000 0x10000>;
++				read-only;
++			};
++
++			factory: partition@90000 {
++				label = "factory";
++				reg = <0x90000 0x10000>;
++				read-only;
++
++				nvmem-layout {
++					compatible = "fixed-layout";
++					#address-cells = <1>;
++					#size-cells = <1>;
++
++					macaddr_factory_4000: macaddr@4000 {
++						compatible = "mac-base";
++						reg = <0x4000 0x6>;
++						#nvmem-cell-cells = <1>;
++					};
++				};
++			};
++
++			partition@a0000 {
++				label = "log";
++				reg = <0xa0000 0x40000>;
++			};
++
++			partition@e0000 {
++				label = "CFG";
++				reg = <0xe0000 0x20000>;
++			};
++		};
++	};
++
++	flash@1 {
++		compatible = "spi-nand";
++		reg = <1>;
++		spi-max-frequency = <50000000>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				compatible = "linux,ubi";
++				label = "ubi";
++				reg = <0x0 0x8000000>;
++			};
++		};
++	};
++};
++
++&switch0 {
++	ports {
++		port@2 {
++			status = "okay";
++			label = "lan";
++		};
++
++		wanport: port@4 {
++			status = "okay";
++			label = "wan";
++			nvmem-cells = <&macaddr_factory_4000 0>;
++			nvmem-cell-names = "mac-address";
++		};
++	};
++};
++
++&state_default {
++	gpio {
++		groups = "jtag", "wdt";
++		function = "gpio";
++	};
++};
+diff --git a/target/linux/ramips/image/mt7621.mk b/target/linux/ramips/image/mt7621.mk
+--- a/target/linux/ramips/image/mt7621.mk
++++ b/target/linux/ramips/image/mt7621.mk
+@@ -1581,5 +1581,17 @@ define Device/glinet_gl-mt1300
+   DEVICE_PACKAGES := kmod-mt7615-firmware kmod-usb3 -uboot-envtools
+ endef
+ TARGET_DEVICES += glinet_gl-mt1300
++
++define Device/glinet_gl-mg1300
++  $(Device/nand)
++  IMAGE_SIZE := 120832k
++  DEVICE_VENDOR := GL.iNet
++  DEVICE_MODEL := GL-MG1300
++  DEVICE_PACKAGES := kmod-mt7615-firmware kmod-usb3 -uboot-envtools
++  KERNEL_IN_UBI := 1
++  IMAGES += factory.bin
++  IMAGE/factory.bin := append-ubi | check-size
++endef
++TARGET_DEVICES += glinet_gl-mg1300
+ 
+ define Device/gnubee_gb-pc1
+diff --git a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+--- a/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
++++ b/target/linux/ramips/mt7621/base-files/etc/board.d/02_network
+@@ -71,5 +71,6 @@ ramips_setup_interfaces()
+ 	cudy,m1300-v2|\
+ 	cudy,m1800|\
+ 	dna,valokuitu-plus-ex400|\
+ 	genexis,pulse-ex400|\
++	glinet,gl-mg1300|\
+ 	humax,e10|\
+@@ -217,7 +217,12 @@ ramips_setup_macs()
+ 	zbtlink,zbt-wg3526-16m|\
+ 	zbtlink,zbt-wg3526-32m)
+ 		label_mac=$(mtd_get_mac_binary factory 0x4)
+ 		;;
++	glinet,gl-mg1300)
++		wan_mac=$(mtd_get_mac_binary factory 0x4000)
++		lan_mac=$(macaddr_add "$wan_mac" 1)
++		label_mac=$wan_mac
++		;;
+ 	ampedwireless,ally-00x19k)
+ 		lan_mac=$(mtd_get_mac_ascii hwconfig HW.LAN.MAC.Address)
+ 		label_mac=$lan_mac
+diff --git a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
+--- a/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
++++ b/target/linux/ramips/mt7621/base-files/lib/upgrade/platform.sh
+@@ -15,6 +15,9 @@ platform_check_image() {
+ 	[ "$#" -gt 1 ] && return 1
+ 
+ 	case "$board" in
++	glinet,gl-mg1300)
++		sysctl -qw vm.min_free_kbytes=1024
++		;;
+ 	buffalo,wsr-2533dhpl2|\
+ 	buffalo,wsr-2533dhpls)
+ 		buffalo_check_image "$board" "$magic" "$1" || return 1
+@@ -106,7 +109,8 @@ platform_do_upgrade() {
+ 	h3c,tx1806|\
+ 	haier,har-20s2u1|\
+ 	hiwifi,hc5962|\
+ 	gemtek,wvrtm-127acn|\
+ 	gemtek,wvrtm-130acn|\
++	glinet,gl-mg1300|\
+ 	iptime,a3004t|\
+ 	iptime,ax2002m|\
