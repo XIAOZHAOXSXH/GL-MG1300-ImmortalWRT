@@ -1,6 +1,6 @@
 # GL.iNet GL-MG1300 ImmortalWRT
 
-这是 GL.iNet GL-MG1300 的 ImmortalWRT 外测移植仓库。仓库只保存设备补丁、构建配置和 GitHub Actions；Actions 会在构建时以 `v25.12.1` 克隆 ImmortalWRT，因此不会把上游历史或其他作者带入本仓库。
+这是 GL.iNet GL-MG1300 的 ImmortalWRT 移植仓库。仓库只保存设备补丁、构建配置和 GitHub Actions；Actions 会在构建时以 `v25.12.1` 克隆 ImmortalWRT。
 
 ## 已核验硬件
 
@@ -22,14 +22,10 @@
 4. 编译 `factory.bin` 与 `sysupgrade.bin`
 5. 上传 Actions Artifact，并创建带 SHA256SUMS 的 GitHub Release
 
-GitHub-hosted runner 无法访问你电脑的 `127.0.0.1:7890`。如使用自托管 runner 或可从 runner 访问的代理，可设置仓库变量 `BUILD_HTTP_PROXY`、`BUILD_HTTPS_PROXY`；不要把本机地址硬编码到工作流中。
-
 ## 刷写注意
 
-这是外测移植，不能把“编译成功”当作“已经验证可以刷写”。第一次测试前应保留 SPI-NOR 和 SPI-NAND 的本地备份，并准备串口或原厂恢复路径。Release 中的 factory 镜像尚未在所有恢复路径上验证；sysupgrade 镜像只应从兼容的 ImmortalWRT 系统使用。仓库不提供未经核验的 `mtkupgrade` 命令或 eMMC 操作。
+第一次测试前应保留 SPI-NOR 和 SPI-NAND 的本地备份，并准备串口或原厂恢复路径。Release 中的 factory 镜像尚未在所有恢复路径上验证；sysupgrade 镜像只应从兼容的 ImmortalWRT 系统使用。仓库不提供未经核验的 `mtkupgrade` 命令或 eMMC 操作。
 
 首次启动沿用原厂管理地址 `192.168.8.1`，并将主机名设为 `GL-MG1300`。USB 供电 GPIO 已按原厂导出，但原厂专有 `usb-control` 驱动没有被伪造移植，USB 过流控制等行为需要实机测试。
 
 首次联网时应把电脑网卡设为自动获取地址，并连接设备的 LAN 口而不是 WAN 口。正常情况下电脑会取得 `192.168.8.100-249/24`，网关和管理地址为 `192.168.8.1`，子网掩码为 `255.255.255.0`。如果能取得 `192.168.8.x` 并访问 `192.168.8.1`，Windows 显示“未识别的网络”通常只表示 WAN 尚未联网；如果地址是 `169.254.x.x`，才表示没有收到 LAN DHCP 响应。
-
-设备审计中的原始 MTD、factory、UBI、DTB 和 SSH 文件保存在本地 `device-audit-agent/`，该目录已加入 `.gitignore`，不会进入提交或 Release。
